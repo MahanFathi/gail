@@ -4,11 +4,16 @@ import numpy as np
 import torch as th
 import torch.utils.data as th_data
 
+import gym
+
+from typing import Callable, Dict, Iterable, Mapping, Optional, Type, Union
+
+
 from yacs.config import CfgNode
 from stable_baselines3.common import on_policy_algorithm, preprocessing, vec_env
 
 from imitation.data import buffer, types, wrappers
-from imitation.util import logger, reward_wrapper, util
+from imitation.util import reward_wrapper, util
 
 from gail.discriminator import Discriminator
 
@@ -46,7 +51,7 @@ class GAIL(object):
 
 
     def _build_discriminator(self):
-        self.disc = Discriminator(self.cfg, self.venv.observation_space, self.action_space)
+        self.disc = Discriminator(self.cfg, self.venv.observation_space, self.venv.action_space)
         self.disc._logits_net.to('cuda')
 
 
@@ -80,8 +85,8 @@ class GAIL(object):
     def _build_expert_dataloader(self, ):
         # TODO: not quite familiar with data types
         self.expert_data_loader = th_data.DataLoader(
-            expert_data,
-            batch_size=expert_batch_size,
+            self.expert_data,
+            batch_size=self.expert_batch_size,
             collate_fn=types.transitions_collate_fn,
             shuffle=True,
             drop_last=True,
@@ -90,13 +95,17 @@ class GAIL(object):
 
 
     def _build_disc_optimizer(self, ):
-        self.disc_optimizer = th.optim.Adam(self.disc._logits_net.parameters(), cfg.DISC.LR)
+        self.disc_optimizer = th.optim.Adam(self.disc._logits_net.parameters(), self.cfg.DISC.LR)
+
+
+    def _torchify_array(self, ndarray: np.ndarray, **kwargs) -> th.Tensor:
+        return th.as_tensor(ndarray, device='cuda', **kwargs)
 
 
     def _torchify_with_space(
         self, ndarray: np.ndarray, space: gym.Space, **kwargs
     ) -> th.Tensor:
-        tensor = th.as_tensor(ndarray, device=self.discrim.device(), **kwargs)
+        tensor = th.as_tensor(ndarray, device='cuda', **kwargs)
         preprocessed = preprocessing.preprocess_obs(tensor, space)
         return preprocessed
 
@@ -113,13 +122,13 @@ class GAIL(object):
         )
         self._global_step += 1
 
-        gen_samples = self.venv_buffering.pop_transitions()
+        gen_samples = self.venv.pop_transitions()
         self._gen_replay_buffer.store(gen_samples)
 
 
     def _make_disc_train_batch(self, ) -> Mapping:
         # create expert batch
-        expert_sampes = next(self._endless_expert_iterator)
+        expert_samples = next(self._endless_expert_iterator)
         # create gen batch
         gen_samples = self._gen_replay_buffer.sample(self.expert_batch_size)
         gen_samples = types.dataclass_quick_asdict(gen_samples)
@@ -154,9 +163,9 @@ class GAIL(object):
         # next_obs = self.venv_norm_obs.normalize_obs(next_obs)
 
         batch_dict = {
-            "state": self._torchify_with_space(obs, self.discrim.observation_space),
-            "action": self._torchify_with_space(acts, self.discrim.action_space),
-            "next_state": self._torchify_with_space(next_obs, self.discrim.observation_space),
+            "state": self._torchify_with_space(obs, self.disc.observation_space),
+            "action": self._torchify_with_space(acts, self.disc.action_space),
+            "next_state": self._torchify_with_space(next_obs, self.disc.observation_space),
             "done": self._torchify_array(dones),
             "labels_gen_is_one": self._torchify_array(labels_gen_is_one),
         }
@@ -167,7 +176,7 @@ class GAIL(object):
     def train_disc(self, ):
 
         batch = self._make_disc_train_batch()
-        disc_loss = self.disc.get_logits(
+        disc_loss = self.disc.get_loss(
             batch['state'],
             batch['action'],
             batch['labels_gen_is_one'],
@@ -177,5 +186,11 @@ class GAIL(object):
         self.disc_optimizer.step()
 
 
-    def train(self, ):
-        pass
+    def train(self, total_timesteps):
+
+        n_rounds = total_timesteps // self.gen_batch_size
+
+        for _ in range(n_rounds):
+            self.train_gen()
+            for _ in range(self.cfg.DISC.UPDATES_PER_ROUND):
+                self.train_disc()

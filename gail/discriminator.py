@@ -2,7 +2,7 @@ import numpy as np
 
 import torch as th
 import torch.nn as nn
-import torch.functional as F
+import torch.nn.functional as F
 
 import gym
 
@@ -11,7 +11,6 @@ from yacs.config import CfgNode
 from stable_baselines3.common import preprocessing, vec_env
 
 from imitation.rewards.discrim_nets import ActObsMLP
-from util import networks
 
 
 class Discriminator(object):
@@ -25,14 +24,14 @@ class Discriminator(object):
         self.observation_space = obs_space
         self.action_space = act_space
 
+        self._build()
 
     def _build(self, ):
-        self._build_net
+        self._build_net()
 
     def _build_net(self, ):
-       hidden_sizes = cfg.DISC.HIDD_SIZES
-       self._logits_net = ActObsMLP(self.action_space, self.observation_space, hid_sizes=hidden_sizes)
-
+        hidden_sizes = self.cfg.DISC.HIDD_SIZES
+        self._logits_net = ActObsMLP(self.action_space, self.observation_space, hid_sizes=hidden_sizes)
 
     def get_logits(
             self,
@@ -40,7 +39,6 @@ class Discriminator(object):
             actions: th.Tensor,
     ):
         return self._logits_net(observations, actions)
-
 
     def get_loss(
             self,
@@ -53,20 +51,15 @@ class Discriminator(object):
             logits_gen_is_high, labels_gen_is_one.float()
         )
 
-
-
     def get_reward(
             self,
             state: th.Tensor,
             action: th.Tensor,
-            next_state: th.Tensor,
-            done: th.Tensor,
     ) -> th.Tensor:
         # note: gen logits are high
         logits = self.get_logits(state, action)
         rew = -F.logsigmoid(logits)
         return rew
-
 
     def get_reward_np(
             self,
@@ -81,12 +74,11 @@ class Discriminator(object):
         action_th = th.as_tensor(action, device=device)
         next_state_th = th.as_tensor(next_state, device=device)
 
-        # FIXME: no preprocessing for now
-        # state_th = preprocessing.preprocess_obs(state_th, observation_space, scale)
-        # action_th = preprocessing.preprocess_obs(action_th, action_space, scale)
-        # next_state_th = preprocessing.preprocess_obs(
-        #     next_state_th, observation_space, scale
-        # )
+        state_th = preprocessing.preprocess_obs(state_th, self.observation_space, scale)
+        action_th = preprocessing.preprocess_obs(action_th, self.action_space, scale)
+        next_state_th = preprocessing.preprocess_obs(
+            next_state_th, self.observation_space, scale
+        )
 
         done_th = th.as_tensor(done, device=device)
         done_th = done_th.to(th.float32)

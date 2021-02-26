@@ -12,6 +12,7 @@ _C = CN()
 _C.DISC = CN()
 _C.DISC.HIDD_SIZES = [32, 32]
 _C.DISC.LR = 1e-3
+_C.DISC.UPDATES_PER_ROUND = 12
 
 
 

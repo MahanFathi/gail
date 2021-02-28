@@ -3,6 +3,7 @@
 # Edit at https://www.toptal.com/developers/gitignore?templates=python,emacs,pycharm
 
 /.idea/
+/logs/
 
 ### Emacs ###
 # -*- mode: gitignore; -*-

@@ -2,12 +2,14 @@ import pathlib
 import pickle
 import tempfile
 
+from datetime import datetime
+
 import stable_baselines3 as sb3
 
 from gail.gail import GAIL
 
 from imitation.data import rollout
-from imitation.util import util
+from imitation.util import util, logger
 
 from config.defaults import get_cfg_defaults
 
@@ -24,6 +26,9 @@ transitions = rollout.flatten_trajectories(trajectories)
 
 venv = util.make_vec_env("CartPole-v1", n_envs=2)
 
+# logging
+logger.configure(pathlib.Path("./logs") / str(datetime.now().time())), ["stdout", "log", "csv", "tensorboard"])
+
 gail_trainer = GAIL(
     cfg,
     venv,
@@ -31,4 +36,4 @@ gail_trainer = GAIL(
     expert_batch_size=32,
     gen_algo=sb3.PPO("MlpPolicy", venv, verbose=1, n_steps=1024),
 )
-gail_trainer.train(total_timesteps=10 * 2048)
+gail_trainer.train(total_timesteps=100 * 2048)

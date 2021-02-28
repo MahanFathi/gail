@@ -1,8 +1,12 @@
+import os
+
+import logging
 import dataclasses
 
 import numpy as np
 import torch as th
 import torch.utils.data as th_data
+import torch.utils.tensorboard as thboard
 
 import gym
 
@@ -13,7 +17,9 @@ from yacs.config import CfgNode
 from stable_baselines3.common import on_policy_algorithm, preprocessing, vec_env
 
 from imitation.data import buffer, types, wrappers
-from imitation.util import reward_wrapper, util
+from imitation.util import reward_wrapper, util, logger
+from imitation.rewards import common as rew_common
+
 
 from gail.discriminator import Discriminator
 
@@ -38,16 +44,25 @@ class GAIL(object):
         self.gen_algo = gen_algo
 
         self._global_step = 0
+        self._disc_step = 0
 
         self._build()
 
 
     def _build(self):
+        self._build_tensorboard()
         self._build_discriminator()
         self._wrap_env()
         self._build_buffer()
         self._build_expert_dataloader()
         self._build_disc_optimizer()
+
+
+    def _build_tensorboard(self):
+        logging.info("building summary directory at " + "./output")
+        summary_dir = os.path.join("./output", "summary")
+        os.makedirs(summary_dir, exist_ok=True)
+        self._summary_writer = thboard.SummaryWriter(summary_dir)
 
 
     def _build_discriminator(self):
@@ -116,11 +131,12 @@ class GAIL(object):
 
 
     def train_gen(self, ):
-        self.gen_algo.learn(
-            total_timesteps=self.gen_batch_size, # upper bound on total transitions (i.e. gen dataset size)
-            reset_num_timesteps=False,
-        )
-        self._global_step += 1
+
+        with logger.accumulate_means("gen"):
+            self.gen_algo.learn(
+                total_timesteps=self.gen_batch_size, # upper bound on total transitions (i.e. gen dataset size)
+                reset_num_timesteps=False,
+            )
 
         gen_samples = self.venv.pop_transitions()
         self._gen_replay_buffer.store(gen_samples)
@@ -175,15 +191,32 @@ class GAIL(object):
 
     def train_disc(self, ):
 
-        batch = self._make_disc_train_batch()
-        disc_loss = self.disc.get_loss(
-            batch['state'],
-            batch['action'],
-            batch['labels_gen_is_one'],
-        )
-        self.disc_optimizer.zero_grad()
-        disc_loss.backward()
-        self.disc_optimizer.step()
+        with logger.accumulate_means("disc"):
+
+            should_write_summaries = self._global_step % 20 == 0
+
+            batch = self._make_disc_train_batch()
+            logits_gen_is_high = self.disc.get_logits(batch["state"], batch["action"])
+            disc_loss = self.disc.get_loss(
+                logits_gen_is_high,
+                batch['labels_gen_is_one'],
+            )
+            self.disc_optimizer.zero_grad()
+            disc_loss.backward()
+            self.disc_optimizer.step()
+            self._disc_step += 1
+
+            # compute/write stats and TensorBoard data
+            with th.no_grad():
+                train_stats = rew_common.compute_train_stats(
+                    logits_gen_is_high, batch["labels_gen_is_one"], disc_loss
+                )
+            logger.record("global_step", self._global_step)
+            for k, v in train_stats.items():
+                logger.record(k, v)
+            logger.dump(self._disc_step)
+            # if should_write_summaries:
+                # self._summary_writer.add_histogram("disc_logits", logits_gen_is_high.detach())
 
 
     def train(self, total_timesteps):
@@ -191,6 +224,8 @@ class GAIL(object):
         n_rounds = total_timesteps // self.gen_batch_size
 
         for _ in range(n_rounds):
+            self._global_step += 1
             self.train_gen()
             for _ in range(self.cfg.DISC.UPDATES_PER_ROUND):
                 self.train_disc()
+            logger.dump(self._global_step)

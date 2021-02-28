@@ -42,11 +42,9 @@ class Discriminator(object):
 
     def get_loss(
             self,
-            observations: th.Tensor,
-            actions: th.Tensor,
+            logits_gen_is_high: th.Tensor,
             labels_gen_is_one: th.Tensor,
     ):
-        logits_gen_is_high = self.get_logits(observations, actions)
         return F.binary_cross_entropy_with_logits(
             logits_gen_is_high, labels_gen_is_one.float()
         )

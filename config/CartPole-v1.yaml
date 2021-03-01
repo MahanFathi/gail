@@ -1,0 +1,21 @@
+ENV:
+  GYM_ENV: "CartPole-v1"
+  N_ENVS: 2
+
+DISC:
+    LR: 0.001
+    HIDD_SIZES:
+        - 32
+        - 32
+    UPDATES_PER_ROUND: 12
+
+GEN:
+    LR: 0.0003
+    N_STEPS: 1024 # The number of steps to run for each environment per update
+
+GAIL:
+    TOTAL_TIMESTEPS: 20480
+
+DATA:
+    EXPERT_PATH: "./data/expert_models/cartpole_0/rollouts/final.pkl"
+    EXPERT_BATCH_SIZE: 32

@@ -133,12 +133,20 @@ class GAIL(object):
         return self.gen_algo.n_steps * self.gen_algo.get_env().num_envs
 
 
-    def dump_gen(self, ) -> None:
+    def dump_gen_and_env(self, ) -> None:
+        # checkpoint for generator (i.e. policy)
         if self._global_step % self.cfg.GEN.MODEL_DUMP_PERIOD is not 0:
             return
         os.makedirs(self.log_dir / "models", exist_ok=True)
         filepath = self.log_dir / "models" / "{}".format(self._global_step)
         self.gen_algo.save(filepath)
+
+        # checkpoints for envs are necessary when observations are normalized
+        if not self.cfg.GAIL.NORM_OBS:
+            return
+        os.makedirs(self.log_dir / "envs", exist_ok=True)
+        filepath = self.log_dir / "envs" / "{}.pkl".format(self._global_step)
+        self.venv_norm_obs.save(filepath)
 
 
     def train_gen(self, ):
@@ -240,4 +248,4 @@ class GAIL(object):
             for _ in range(self.cfg.DISC.UPDATES_PER_ROUND):
                 self.train_disc()
             logger.dump(self._global_step)
-            self.dump_gen()
+            self.dump_gen_and_env()

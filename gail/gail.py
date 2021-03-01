@@ -1,25 +1,20 @@
 import os
-
 import logging
 import dataclasses
+from typing import Callable, Dict, Iterable, Mapping, Optional, Type, Union
 
+import gym
 import numpy as np
 import torch as th
 import torch.utils.data as th_data
 import torch.utils.tensorboard as thboard
-
-import gym
-
-from typing import Callable, Dict, Iterable, Mapping, Optional, Type, Union
-
-
 from yacs.config import CfgNode
+
 from stable_baselines3.common import on_policy_algorithm, preprocessing, vec_env
 
 from imitation.data import buffer, types, wrappers
 from imitation.util import reward_wrapper, util, logger
 from imitation.rewards import common as rew_common
-
 
 from gail.discriminator import Discriminator
 
@@ -31,17 +26,15 @@ class GAIL(object):
             cfg: CfgNode,
             venv: vec_env.VecEnv,
             expert_data: Union[Iterable[Mapping], types.Transitions],
-            expert_batch_size: int,
             gen_algo: on_policy_algorithm.OnPolicyAlgorithm,
-            *,
-            discrim_kwargs: Optional[Mapping] = None,
-            **kwargs,
     ):
+
         self.cfg = cfg
         self.venv = venv
         self.expert_data = expert_data
-        self.expert_batch_size = expert_batch_size
         self.gen_algo = gen_algo
+
+        self.expert_batch_size = cfg.DATA.EXPERT_BATCH_SIZE
 
         self._global_step = 0
         self._disc_step = 0
@@ -49,8 +42,8 @@ class GAIL(object):
         self._build()
 
 
-    def _build(self):
-        self._build_tensorboard()
+    def _build(self, ):
+        # self._build_tensorboard()
         self._build_discriminator()
         self._wrap_env()
         self._build_buffer()
@@ -65,7 +58,7 @@ class GAIL(object):
         self._summary_writer = thboard.SummaryWriter(summary_dir)
 
 
-    def _build_discriminator(self):
+    def _build_discriminator(self, ):
         self.disc = Discriminator(self.cfg, self.venv.observation_space, self.venv.action_space)
         self.disc._logits_net.to('cuda')
 
@@ -73,24 +66,32 @@ class GAIL(object):
     def _wrap_env(self, ):
         """To buffer data and replace reward function
         """
+
+        # buffering wrapper is the first layer so we can store raw obs&rew
         self.venv = wrappers.BufferingWrapper(self.venv)
-        # not normalizing env for now
-        # self.venv_norm_obs = vec_env.VecNormalize(
-        #     self.venv_buffering,
-        #     norm_reward=False,
-        #     norm_obs=normalize_obs,
-        # )
-        self.venv = reward_wrapper.RewardVecEnvWrapper(self.venv, self.disc.get_reward_np)
-        # FIXME: can also normalize rewards
-        # self.venv_train = vec_env.VecNormalize(
-        #     self.venv_wrapped, norm_obs=False, norm_reward=normalize_reward
-        # )
+
+        # only normalize obs, disc reward wrapper should be next
+        # NOTE: `venv_norm_obs`: given a specific name, since this wrapper is used twice
+        self.venv_norm_obs = vec_env.VecNormalize(
+            self.venv,
+            norm_reward=False,
+            norm_obs=self.cfg.GAIL.NORM_OBS,
+        )
+
+        # reward returned by disc are now based on normalized obs
+        self.venv = reward_wrapper.RewardVecEnvWrapper(self.venv_norm_obs, self.disc.get_reward_np)
+
+        # these rewards are now normalized for gen use
+        self.venv = vec_env.VecNormalize(
+            self.venv,
+            norm_reward=self.cfg.GAIL.NORM_REW,
+            norm_obs=False,
+        )
+
         self.gen_algo.set_env(self.venv)
 
 
-    def _build_buffer(
-            self,
-    ):
+    def _build_buffer(self, ):
         gen_replay_buffer_capacity = self.gen_batch_size
         self._gen_replay_buffer = buffer.ReplayBuffer(
             gen_replay_buffer_capacity, self.venv
@@ -174,9 +175,9 @@ class GAIL(object):
             [np.zeros(n_expert, dtype=int), np.ones(n_gen, dtype=int)]
         )
 
-        # TODO: Policy and reward network were trained on normalized observations.
-        # obs = self.venv_norm_obs.normalize_obs(obs)
-        # next_obs = self.venv_norm_obs.normalize_obs(next_obs)
+        # NOTE: expert's and gen's (unnormalized gen's) data should be normalized now
+        obs = self.venv_norm_obs.normalize_obs(obs)
+        next_obs = self.venv_norm_obs.normalize_obs(next_obs)
 
         batch_dict = {
             "state": self._torchify_with_space(obs, self.disc.observation_space),

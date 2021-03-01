@@ -7,7 +7,7 @@ DISC:
     HIDD_SIZES:
         - 32
         - 32
-    UPDATES_PER_ROUND: 12
+    UPDATES_PER_ROUND: 2
 
 GEN:
     LR: 0.0003
@@ -15,6 +15,8 @@ GEN:
 
 GAIL:
     TOTAL_TIMESTEPS: 20480
+    NORM_OBS: yes
+    NORM_REW: yes
 
 DATA:
     EXPERT_PATH: "./data/expert_models/cartpole_0/rollouts/final.pkl"

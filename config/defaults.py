@@ -41,6 +41,8 @@ _C.DATA.EXPERT_BATCH_SIZE = 32
 # ---------------------------------------------------------------------------- #
 _C.GAIL = CN()
 _C.GAIL.TOTAL_TIMESTEPS = 10 * 2048
+_C.GAIL.NORM_OBS = True
+_C.GAIL.NORM_REW = True
 
 
 def get_cfg_defaults():

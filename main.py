@@ -61,7 +61,7 @@ def main():
 
     # Create Generator
     gen_algo = sb3.PPO(
-        "MlpPolicy", venv, verbose=1,
+        "MlpPolicy", venv, verbose=1, # venv is going to be updated later
         n_steps=cfg.GEN.N_STEPS,
         learning_rate=cfg.GEN.LR,
     )
@@ -71,7 +71,6 @@ def main():
         cfg,
         venv,
         expert_data=transitions,
-        expert_batch_size=cfg.DATA.EXPERT_BATCH_SIZE,
         gen_algo=gen_algo,
     )
 

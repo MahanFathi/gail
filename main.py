@@ -52,12 +52,8 @@ def main():
 
     # Logging
     config_file_name = os.path.basename(os.path.normpath(args.config_file)).split(".")[0]
-    logger.configure(
-        pathlib.Path("./logs") /
-        config_file_name /
-        str(datetime.now().time()),
-        ["stdout", "log", "csv", "tensorboard"],
-    )
+    log_dir = pathlib.Path("./logs") / config_file_name / str(datetime.now().time())
+    logger.configure(log_dir, ["stdout", "log", "csv", "tensorboard"])
 
     # Create Generator
     gen_algo = sb3.PPO(
@@ -72,6 +68,7 @@ def main():
         venv,
         expert_data=transitions,
         gen_algo=gen_algo,
+        log_dir=log_dir,
     )
 
     # Train

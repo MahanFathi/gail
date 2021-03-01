@@ -12,6 +12,7 @@ DISC:
 GEN:
     LR: 0.0003
     N_STEPS: 1024 # The number of steps to run for each environment per update
+    MODEL_DUMP_PERIOD: 100
 
 GAIL:
     TOTAL_TIMESTEPS: 20480

@@ -28,6 +28,7 @@ _C.DISC.UPDATES_PER_ROUND = 12
 _C.GEN = CN()
 _C.GEN.N_STEPS = 1024 # number of steps to run for each environment per update
 _C.GEN.LR = 3e-4
+_C.GEN.MODEL_DUMP_PERIOD = 10
 
 # ---------------------------------------------------------------------------- #
 # DATA

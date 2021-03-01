@@ -27,6 +27,7 @@ class GAIL(object):
             venv: vec_env.VecEnv,
             expert_data: Union[Iterable[Mapping], types.Transitions],
             gen_algo: on_policy_algorithm.OnPolicyAlgorithm,
+            log_dir: Optional[types.AnyPath] = None,
     ):
 
         self.cfg = cfg
@@ -35,6 +36,7 @@ class GAIL(object):
         self.gen_algo = gen_algo
 
         self.expert_batch_size = cfg.DATA.EXPERT_BATCH_SIZE
+        self.log_dir = log_dir
 
         self._global_step = 0
         self._disc_step = 0
@@ -129,6 +131,14 @@ class GAIL(object):
     @property
     def gen_batch_size(self, ) -> int:
         return self.gen_algo.n_steps * self.gen_algo.get_env().num_envs
+
+
+    def dump_gen(self, ) -> None:
+        if self._global_step % self.cfg.GEN.MODEL_DUMP_PERIOD is not 0:
+            return
+        os.makedirs(self.log_dir / "models", exist_ok=True)
+        filepath = self.log_dir / "models" / "{}".format(self._global_step)
+        self.gen_algo.save(filepath)
 
 
     def train_gen(self, ):
@@ -230,3 +240,4 @@ class GAIL(object):
             for _ in range(self.cfg.DISC.UPDATES_PER_ROUND):
                 self.train_disc()
             logger.dump(self._global_step)
+            self.dump_gen()

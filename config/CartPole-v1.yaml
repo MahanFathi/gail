@@ -12,13 +12,13 @@ DISC:
 GEN:
     LR: 0.0003
     N_STEPS: 1024 # The number of steps to run for each environment per update
-    MODEL_DUMP_PERIOD: 100
+    MODEL_DUMP_PERIOD: 10
 
 GAIL:
-    TOTAL_TIMESTEPS: 20480
-    NORM_OBS: yes
-    NORM_REW: yes
+    TOTAL_TIMESTEPS: 2048000
+    NORM_OBS: no
+    NORM_REW: no
 
 DATA:
-    EXPERT_PATH: "./data/expert_models/cartpole_0/rollouts/final.pkl"
+    EXPERT_PATH: "./data/expert_models/cartpole_1/rollout.pkl"
     EXPERT_BATCH_SIZE: 32

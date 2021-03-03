@@ -5,20 +5,21 @@ from stable_baselines3.common.vec_env import VecNormalize
 
 from imitation.util import util, logger
 
-def test_policy(policy: sb3.PPO, iteration: int, model_path=None, env_stats_path=None):
+def test_policy(policy: sb3.PPO, iteration: int, model_path=None, env_stats_path=None, normalize=True):
 
-    model_path = model_path or os.path.join("./models", "{}.zip".format(iteration))
-    env_stats_path = env_stats_path or os.path.join("./envs", "{}.pkl".format(iteration))
 
     env = policy.get_env()
-    env = VecNormalize.load(env_stats_path, env)
+    if normalize:
+        env_stats_path = env_stats_path or os.path.join("./envs", "{}.pkl".format(iteration))
+        env = VecNormalize.load(env_stats_path, env)
     env.training = False
     env.norm_reward = False
 
-    policy.load(model_path)
+    model_path = model_path or os.path.join("./models", "{}.zip".format(iteration))
+    policy.load(model_path, env=env)
 
     obs = env.reset()
     for _ in range(1000):
-        action, _states = policy.predict(obs)
+        action, _states = policy.predict(obs, deterministic=True)
         obs, rewards, dones, info = env.step(action)
         env.render()

@@ -16,7 +16,7 @@ GEN:
 
 GAIL:
     TOTAL_TIMESTEPS: 2048000
-    NORM_OBS: no
+    NORM_OBS: yes
     NORM_REW: no
 
 DATA:

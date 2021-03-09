@@ -1,0 +1,24 @@
+ENV:
+  GYM_ENV: "Breakout-ram-v0"
+  N_ENVS: 2
+
+DISC:
+    LR: 0.001
+    HIDD_SIZES:
+        - 32
+        - 32
+    UPDATES_PER_ROUND: 2
+
+GEN:
+    LR: 0.0003
+    N_STEPS: 1024 # The number of steps to run for each environment per update
+    MODEL_DUMP_PERIOD: 10
+
+GAIL:
+    TOTAL_TIMESTEPS: 2048000
+    NORM_OBS: yes
+    NORM_REW: no
+
+DATA:
+    EXPERT_PATH: "./data/expert_models/breakout_0/final.pkl"
+    EXPERT_BATCH_SIZE: 64

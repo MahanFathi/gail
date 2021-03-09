@@ -5,7 +5,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
 from imitation.util import util, logger
 
-def test_policy(policy: sb3.PPO, env:gym.Env, iteration: int, model_path=None, env_stats_path=None, normalize=True):
+def test_policy(policy: sb3.PPO, env:gym.Env, iteration: int, model_path=None, env_stats_path=None, normalize=True, episode_steps=1000):
 
     env = DummyVecEnv([lambda: env.unwrapped])
     if normalize:
@@ -18,7 +18,7 @@ def test_policy(policy: sb3.PPO, env:gym.Env, iteration: int, model_path=None, e
     policy = policy.load(model_path, env=env)
 
     obs = env.reset()
-    for _ in range(1000):
+    for _ in range(episode_steps):
         action, _states = policy.predict(obs, deterministic=True)
         obs, rewards, dones, info = env.step(action)
         env.render()
